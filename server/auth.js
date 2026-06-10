@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { readDb, publicUser } = require("./db");
+const { query, publicUser, toCamel } = require("./db");
 
 function signUser(user) {
   return jwt.sign(
@@ -9,15 +9,15 @@ function signUser(user) {
   );
 }
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return res.status(401).json({ message: "请先登录" });
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET || "dev-secret");
-    const db = readDb();
-    const user = db.users.find((item) => item.id === payload.id && item.enabled);
+    const result = await query("select * from users where id = $1 and enabled = true limit 1", [payload.id]);
+    const user = toCamel(result.rows[0]);
     if (!user) return res.status(401).json({ message: "账号不存在或已禁用" });
     req.user = publicUser(user);
     next();

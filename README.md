@@ -1,35 +1,80 @@
 # 勤海报
 
-企业内部 AI 对话与海报生成 MVP。
+企业内部 AI 对话与海报生成平台。前端使用 React + Vite，后端使用 Express；部署到 Vercel 后，数据保存到 Supabase Postgres，图片保存到 Cloudflare R2。
 
-## 运行
+## 本地运行
 
 ```powershell
 copy .env.example .env
 npm.cmd install
-npm.cmd run dev
+npm.cmd run build
+npm.cmd start
 ```
 
-打开前端地址：`http://127.0.0.1:5173`
+打开：`http://127.0.0.1:8787`
 
-默认账号：
+默认管理员账号：
 
-- 管理员：`admin` / `admin123`
+- 用户名：`admin`
+- 密码：`admin123`
 
-## API 配置
+首次连接 Supabase 时，后端会自动创建数据表和默认管理员账号。
 
-把对话和生图服务商提供的地址、Key、模型名填到 `.env`：
+## 必填环境变量
+
+Vercel Project Settings -> Environment Variables 中需要填写：
 
 ```env
-CHAT_BASE_URL=https://对话接口地址/v1
-CHAT_API_KEY=你的对话key
-CHAT_MODEL=deepseek-chat
+JWT_SECRET=
 
-IMAGE_BASE_URL=https://生图接口地址/v1
-IMAGE_API_KEY=你的生图key
+DATABASE_URL=
+DATABASE_SSL=true
+
+CHAT_BASE_URL=https://api.deepseek.com
+CHAT_API_KEY=
+CHAT_MODEL=deepseek-v4-pro
+
+IMAGE_BASE_URL=https://api.weelinking.com/v1
+IMAGE_GENERATIONS_URL=https://api.weelinking.com/v1/images/generations
+IMAGE_API_KEY=
 IMAGE_MODEL=gpt-image-2
+IMAGE_SIZE=1024x1024
+
+R2_ENDPOINT=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=
+R2_PUBLIC_URL=
 ```
 
-如果暂时没有 Key，系统仍可登录和使用管理功能，但 AI 调用会返回配置提示。
+## Supabase
 
-注意：如果对话模型不支持识别上传图片，参考图分析会失败。可以后续单独配置一个支持视觉理解的 `VISION_MODEL`。
+创建 Supabase 项目后，在 Project Settings -> Database 中复制 Postgres connection string，填到 `DATABASE_URL`。
+
+本项目会自动创建这些表：
+
+- `users`
+- `conversations`
+- `poster_jobs`
+- `settings`
+
+## Cloudflare R2
+
+需要创建：
+
+- 一个 R2 bucket
+- 一个 R2 API token/access key
+- 一个公开访问域名，填入 `R2_PUBLIC_URL`
+
+`R2_PUBLIC_URL` 必须能被浏览器直接访问，否则历史海报和 Logo 无法显示。
+
+## Vercel
+
+把 GitHub 仓库导入 Vercel 后，填写上面的环境变量即可部署。项目包含 `vercel.json`，会把：
+
+- `/api/*` 转发给 Express API
+- 其他路径交给前端单页应用
+
+## 安全提醒
+
+不要提交真实 `.env` 文件。仓库只提交 `.env.example`，真实 API Key 应该只放在本地或 Vercel 环境变量里。
