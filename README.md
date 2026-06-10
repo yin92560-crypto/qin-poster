@@ -2,6 +2,8 @@
 
 企业内部 AI 对话与海报生成平台。前端使用 React + Vite，后端使用 Express；部署到 Vercel 后，数据保存到 Supabase Postgres，图片保存到 Cloudflare R2。
 
+Production deployment target: Vercel.
+
 ## 本地运行
 
 ```powershell
