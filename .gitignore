@@ -1,0 +1,15 @@
+node_modules/
+dist/
+
+.env
+.server.pid
+*.log
+
+server/data/
+server/uploads/
+
+outputs/
+work/
+
+.DS_Store
+Thumbs.db

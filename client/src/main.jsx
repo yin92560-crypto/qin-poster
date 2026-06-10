@@ -1,0 +1,507 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  Bot,
+  Download,
+  ImagePlus,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Plus,
+  Send,
+  Settings,
+  Shield,
+  Trash2,
+  Upload,
+  Users
+} from "lucide-react";
+import "./styles.css";
+
+const API = "/api";
+
+function request(path, options = {}) {
+  const token = localStorage.getItem("token");
+  const headers = options.body instanceof FormData ? {} : { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  return fetch(`${API}${path}`, { ...options, headers: { ...headers, ...options.headers } }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "请求失败");
+    return data;
+  });
+}
+
+function absoluteUrl(path) {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  return `${window.location.origin}${path}`;
+}
+
+function Login({ onLogin }) {
+  const [form, setForm] = useState({ username: "admin", password: "admin123" });
+  const [error, setError] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    try {
+      const data = await request("/auth/login", {
+        method: "POST",
+        body: JSON.stringify(form)
+      });
+      localStorage.setItem("token", data.token);
+      onLogin(data.user);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <main className="login-page">
+      <form className="login-panel" onSubmit={submit}>
+        <div className="brand-mark">勤</div>
+        <h1>勤海报</h1>
+        <p>企业内部 AI 对话与海报生成平台</p>
+        <label>
+          用户名
+          <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+        </label>
+        <label>
+          密码
+          <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        </label>
+        {error && <div className="error">{error}</div>}
+        <button className="primary" type="submit">登录</button>
+      </form>
+    </main>
+  );
+}
+
+function Shell({ user, setUser }) {
+  const [view, setView] = useState("chat");
+  const nav = [
+    ["chat", MessageSquare, "对话"],
+    ["poster", ImagePlus, "海报生成"],
+    ["history", LayoutDashboard, "海报历史"]
+  ];
+  if (user.role === "admin") nav.push(["admin", Shield, "管理后台"]);
+
+  function logout() {
+    localStorage.removeItem("token");
+    setUser(null);
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="logo-row"><div className="brand-mark small">勤</div><strong>勤海报</strong></div>
+        <nav>
+          {nav.map(([key, Icon, label]) => (
+            <button key={key} className={view === key ? "active" : ""} onClick={() => setView(key)}>
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+      <section className="workspace">
+        <header className="topbar">
+          <div>
+            <strong>{view === "chat" ? "AI 对话" : view === "poster" ? "海报生成" : view === "history" ? "海报历史" : "管理后台"}</strong>
+            <span>{user.role === "admin" ? "管理员" : "普通员工"} · {user.username}</span>
+          </div>
+          <button className="ghost" onClick={logout}><LogOut size={17} />退出</button>
+        </header>
+        {view === "chat" && <ChatView />}
+        {view === "poster" && <PosterView />}
+        {view === "history" && <PosterHistory />}
+        {view === "admin" && <AdminView />}
+      </section>
+    </div>
+  );
+}
+
+function ChatView() {
+  const [conversations, setConversations] = useState([]);
+  const [current, setCurrent] = useState(null);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => { loadConversations(); }, []);
+
+  async function loadConversations() {
+    const data = await request("/conversations");
+    setConversations(data.conversations);
+    if (!current && data.conversations[0]) openConversation(data.conversations[0].id);
+  }
+
+  async function openConversation(id) {
+    const data = await request(`/conversations/${id}`);
+    setCurrent(data.conversation);
+  }
+
+  async function newChat() {
+    const data = await request("/conversations", { method: "POST", body: JSON.stringify({ title: "新对话" }) });
+    setCurrent(data.conversation);
+    loadConversations();
+  }
+
+  async function removeChat(id) {
+    await request(`/conversations/${id}`, { method: "DELETE" });
+    setCurrent(null);
+    loadConversations();
+  }
+
+  async function send() {
+    if (!input.trim() || loading) return;
+    const content = input.trim();
+    setInput("");
+    setError("");
+    setLoading(true);
+    const optimistic = current || { id: null, title: content.slice(0, 24), messages: [] };
+    setCurrent({ ...optimistic, messages: [...optimistic.messages, { role: "user", content }] });
+    try {
+      const data = await request("/chat", {
+        method: "POST",
+        body: JSON.stringify({ conversationId: current?.id, content })
+      });
+      setCurrent(data.conversation);
+      loadConversations();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="chat-layout">
+      <aside className="conversation-list">
+        <button className="primary full" onClick={newChat}><Plus size={17} />新建对话</button>
+        {conversations.map((item) => (
+          <button key={item.id} className={`conversation ${current?.id === item.id ? "selected" : ""}`} onClick={() => openConversation(item.id)}>
+            <span>{item.title}</span>
+            <small>{item.messageCount} 条消息</small>
+          </button>
+        ))}
+      </aside>
+      <main className="chat-main">
+        <div className="messages">
+          {!current?.messages?.length && <Empty icon={Bot} title="今天想创作什么？" text="可以写文案、想活动主题，也可以整理成海报生成提示词。" />}
+          {current?.messages?.map((msg, index) => (
+            <div key={index} className={`message ${msg.role}`}>
+              <div>{msg.content}</div>
+            </div>
+          ))}
+          {loading && <div className="message assistant"><div>正在生成...</div></div>}
+        </div>
+        {error && <div className="error inline">{error}</div>}
+        <div className="composer">
+          <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }} placeholder="请输入你的需求，例如：帮我写一段新品发布朋友圈文案" />
+          <button className="primary icon" onClick={send} disabled={loading}><Send size={18} /></button>
+          {current?.id && <button className="ghost icon" onClick={() => removeChat(current.id)}><Trash2 size={18} /></button>}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function PosterView() {
+  const [prompt, setPrompt] = useState("");
+  const [reference, setReference] = useState(null);
+  const [useLogo, setUseLogo] = useState(true);
+  const [settings, setSettings] = useState({});
+  const [poster, setPoster] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => { request("/settings").then(setSettings).catch(() => {}); }, []);
+
+  async function generate() {
+    setError("");
+    setLoading(true);
+    try {
+      const form = new FormData();
+      form.append("prompt", prompt);
+      form.append("useLogo", String(useLogo));
+      if (reference) form.append("reference", reference);
+      const data = await request("/posters", { method: "POST", body: form });
+      setPoster(data.poster);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function downloadPoster() {
+    if (!poster) return;
+    const image = await loadImage(absoluteUrl(poster.imageUrl));
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(image, 0, 0);
+
+    if (poster.logoUrl) {
+      const logo = await loadImage(absoluteUrl(poster.logoUrl));
+      const width = Math.round(canvas.width * 0.16);
+      const height = Math.round((logo.naturalHeight / logo.naturalWidth) * width);
+      const padding = Math.round(canvas.width * 0.045);
+      ctx.drawImage(logo, canvas.width - width - padding, padding, width, height);
+    }
+
+    const link = document.createElement("a");
+    link.download = `勤海报-${Date.now()}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }
+
+  return (
+    <div className="poster-grid">
+      <section className="panel">
+        <h2>生成海报</h2>
+        <textarea className="poster-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="请描述你想要的海报，例如：生成一张端午节企业福利海报，国风、清爽、适合发公司群，标题是“端午安康，福利已到”" />
+        <label className="upload-box">
+          <Upload size={20} />
+          <span>{reference ? reference.name : "上传参考图片，可选"}</span>
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setReference(e.target.files?.[0] || null)} />
+        </label>
+        <label className="check-row">
+          <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
+          添加企业 Logo（默认右上角）
+        </label>
+        {!settings.logoUrl && useLogo && <div className="notice">当前还没有企业 Logo，管理员可在后台上传。</div>}
+        {error && <div className="error inline">{error}</div>}
+        <button className="primary" onClick={generate} disabled={loading}>{loading ? "生成中..." : "生成海报"}</button>
+      </section>
+      <section className="panel result-panel">
+        <h2>生成结果</h2>
+        {!poster && <Empty icon={ImagePlus} title="还没有海报" text="填写描述后生成，结果会自动保存到海报历史。" />}
+        {poster && <PosterCard poster={poster} onDownload={downloadPoster} large />}
+      </section>
+    </div>
+  );
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function PosterHistory() {
+  const [posters, setPosters] = useState([]);
+  const [keyword, setKeyword] = useState("");
+
+  useEffect(() => { request("/posters").then((data) => setPosters(data.posters)); }, []);
+
+  const filtered = posters.filter((item) => item.prompt.includes(keyword) || item.username.includes(keyword));
+
+  return (
+    <div className="history-page">
+      <div className="toolbar">
+        <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索描述或用户" />
+      </div>
+      <div className="poster-list">
+        {filtered.map((poster) => <PosterCard key={poster.id} poster={poster} />)}
+      </div>
+      {!filtered.length && <Empty icon={LayoutDashboard} title="暂无记录" text="生成过的海报会出现在这里。" />}
+    </div>
+  );
+}
+
+function PosterCard({ poster, onDownload, large = false }) {
+  return (
+    <article className={`poster-card ${large ? "large" : ""}`}>
+      <div className="poster-preview">
+        <img src={poster.imageUrl} alt="生成海报" />
+        {poster.logoUrl && <img className="poster-logo" src={poster.logoUrl} alt="企业 Logo" />}
+      </div>
+      <div className="poster-info">
+        <strong>{poster.prompt}</strong>
+        <span>{poster.username} · {new Date(poster.createdAt).toLocaleString()}</span>
+        <div className="actions">
+          {onDownload ? (
+            <button className="primary" onClick={onDownload}><Download size={17} />下载图片</button>
+          ) : (
+            <a className="button-link" href={poster.imageUrl} download><Download size={17} />下载原图</a>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function AdminView() {
+  const [tab, setTab] = useState("users");
+  return (
+    <div className="admin-layout">
+      <aside className="admin-tabs">
+        <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")}><Users size={17} />用户管理</button>
+        <button className={tab === "logo" ? "active" : ""} onClick={() => setTab("logo")}><Settings size={17} />Logo 管理</button>
+        <button className={tab === "stats" ? "active" : ""} onClick={() => setTab("stats")}><LayoutDashboard size={17} />使用统计</button>
+        <button className={tab === "records" ? "active" : ""} onClick={() => setTab("records")}><MessageSquare size={17} />记录查看</button>
+      </aside>
+      <main className="panel">
+        {tab === "users" && <UserAdmin />}
+        {tab === "logo" && <LogoAdmin />}
+        {tab === "stats" && <StatsAdmin />}
+        {tab === "records" && <RecordsAdmin />}
+      </main>
+    </div>
+  );
+}
+
+function UserAdmin() {
+  const [users, setUsers] = useState([]);
+  const [form, setForm] = useState({ username: "", password: "", role: "user" });
+  const [error, setError] = useState("");
+  const load = () => request("/admin/users").then((data) => setUsers(data.users));
+  useEffect(() => { load(); }, []);
+
+  async function createUser(e) {
+    e.preventDefault();
+    setError("");
+    try {
+      await request("/admin/users", { method: "POST", body: JSON.stringify(form) });
+      setForm({ username: "", password: "", role: "user" });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function updateUser(id, patch) {
+    await request(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+    load();
+  }
+
+  return (
+    <>
+      <h2>用户管理</h2>
+      <form className="inline-form" onSubmit={createUser}>
+        <input placeholder="用户名" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+        <input placeholder="初始密码" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+          <option value="user">普通员工</option>
+          <option value="admin">管理员</option>
+        </select>
+        <button className="primary">新增用户</button>
+      </form>
+      {error && <div className="error inline">{error}</div>}
+      <table>
+        <thead><tr><th>用户名</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+          {users.map((user) => (
+            <tr key={user.id}>
+              <td>{user.username}</td>
+              <td>{user.role === "admin" ? "管理员" : "普通员工"}</td>
+              <td>{user.enabled ? "启用" : "禁用"}</td>
+              <td><button className="ghost" onClick={() => updateUser(user.id, { enabled: !user.enabled })}>{user.enabled ? "禁用" : "启用"}</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+function LogoAdmin() {
+  const [logoUrl, setLogoUrl] = useState("");
+  const [file, setFile] = useState(null);
+  useEffect(() => { request("/settings").then((data) => setLogoUrl(data.logoUrl)); }, []);
+
+  async function uploadLogo() {
+    const form = new FormData();
+    form.append("logo", file);
+    const data = await request("/admin/logo", { method: "POST", body: form });
+    setLogoUrl(data.logoUrl);
+    setFile(null);
+  }
+
+  return (
+    <>
+      <h2>Logo 管理</h2>
+      <label className="upload-box">
+        <Upload size={20} />
+        <span>{file ? file.name : "选择企业 Logo"}</span>
+        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+      </label>
+      <button className="primary" onClick={uploadLogo} disabled={!file}>上传 Logo</button>
+      {logoUrl && <div className="logo-preview"><img src={logoUrl} alt="企业 Logo" /></div>}
+    </>
+  );
+}
+
+function StatsAdmin() {
+  const [stats, setStats] = useState(null);
+  useEffect(() => { request("/admin/stats").then(setStats); }, []);
+  if (!stats) return null;
+  return (
+    <>
+      <h2>使用统计</h2>
+      <div className="stats-grid">
+        <Stat label="用户总数" value={stats.totalUsers} />
+        <Stat label="会话总数" value={stats.totalConversations} />
+        <Stat label="海报总数" value={stats.totalPosters} />
+        <Stat label="今日海报" value={stats.todayPosters} />
+        <Stat label="今日消息" value={stats.todayMessages} />
+      </div>
+    </>
+  );
+}
+
+function RecordsAdmin() {
+  const [conversations, setConversations] = useState([]);
+  const [posters, setPosters] = useState([]);
+  useEffect(() => {
+    request("/conversations?full=1").then((data) => setConversations(data.conversations));
+    request("/posters").then((data) => setPosters(data.posters));
+  }, []);
+  return (
+    <>
+      <h2>记录查看</h2>
+      <h3>聊天记录</h3>
+      <div className="record-list">
+        {conversations.map((item) => <div className="record" key={item.id}><strong>{item.title}</strong><span>{item.username} · {item.messages?.length || 0} 条</span></div>)}
+      </div>
+      <h3>海报记录</h3>
+      <div className="poster-list compact">
+        {posters.map((poster) => <PosterCard key={poster.id} poster={poster} />)}
+      </div>
+    </>
+  );
+}
+
+function Stat({ label, value }) {
+  return <div className="stat"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function Empty({ icon: Icon, title, text }) {
+  return <div className="empty"><Icon size={34} /><strong>{title}</strong><span>{text}</span></div>;
+}
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    request("/auth/me").then((data) => setUser(data.user)).catch(() => localStorage.removeItem("token")).finally(() => setReady(true));
+  }, []);
+
+  if (!ready) return <div className="boot">勤海报加载中...</div>;
+  return user ? <Shell user={user} setUser={setUser} /> : <Login onLogin={setUser} />;
+}
+
+createRoot(document.getElementById("root")).render(<App />);
