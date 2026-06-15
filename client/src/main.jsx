@@ -242,25 +242,7 @@ function PosterView() {
 
   async function downloadPoster() {
     if (!poster) return;
-    const image = await loadImage(absoluteUrl(poster.imageUrl));
-    const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(image, 0, 0);
-
-    if (poster.logoUrl) {
-      const logo = await loadImage(absoluteUrl(poster.logoUrl));
-      const width = Math.round(canvas.width * 0.16);
-      const height = Math.round((logo.naturalHeight / logo.naturalWidth) * width);
-      const padding = Math.round(canvas.width * 0.045);
-      ctx.drawImage(logo, canvas.width - width - padding, padding, width, height);
-    }
-
-    const link = document.createElement("a");
-    link.download = `勤海报-${Date.now()}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    await downloadPosterFile(poster);
   }
 
   return (
@@ -275,7 +257,7 @@ function PosterView() {
         </label>
         <label className="check-row">
           <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
-          添加企业 Logo（默认右上角）
+          添加企业 Logo（默认左上角悬浮）
         </label>
         {!settings.logoUrl && useLogo && <div className="notice">当前还没有企业 Logo，管理员可在后台上传。</div>}
         {error && <div className="error inline">{error}</div>}
@@ -298,6 +280,28 @@ function loadImage(src) {
     img.onerror = reject;
     img.src = src;
   });
+}
+
+async function downloadPosterFile(poster) {
+  const image = await loadImage(absoluteUrl(poster.imageUrl));
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(image, 0, 0);
+
+  if (poster.logoUrl) {
+    const logo = await loadImage(absoluteUrl(poster.logoUrl));
+    const width = Math.round(canvas.width * 0.18);
+    const height = Math.round((logo.naturalHeight / logo.naturalWidth) * width);
+    const padding = Math.round(canvas.width * 0.04);
+    ctx.drawImage(logo, padding, padding, width, height);
+  }
+
+  const link = document.createElement("a");
+  link.download = `勤海报-${Date.now()}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
 }
 
 function PosterHistory() {
@@ -335,7 +339,7 @@ function PosterCard({ poster, onDownload, large = false }) {
           {onDownload ? (
             <button className="primary" onClick={onDownload}><Download size={17} />下载图片</button>
           ) : (
-            <a className="button-link" href={poster.imageUrl} download><Download size={17} />下载原图</a>
+            <button className="button-link" onClick={() => downloadPosterFile(poster)}><Download size={17} />下载图片</button>
           )}
         </div>
       </div>

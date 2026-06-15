@@ -176,9 +176,9 @@ app.post("/api/posters", requireAuth, upload.single("reference"), async (req, re
     const finalPrompt = [
       "生成一张中文企业海报，画面清晰、构图完整、适合企业内部传播。",
       "海报文字要尽量准确、简洁，避免乱码。",
+      "不要绘制企业 Logo、Logo 预留区、占位框、虚线框，或“企业LOGO”等占位文字；画面应完整自然。",
       prompt,
-      referenceUrl ? "用户上传了参考图片，当前版本仅保存参考图，不调用对话模型识图分析。" : "",
-      logoUrl ? "用户选择添加企业 Logo，前端会默认放在右上角，请预留干净位置。" : ""
+      referenceUrl ? "用户上传了参考图片，当前版本仅保存参考图，不调用对话模型识图分析。" : ""
     ].filter(Boolean).join("\n");
 
     const image = await generateImage(finalPrompt);
