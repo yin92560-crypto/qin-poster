@@ -184,6 +184,7 @@ app.post("/api/posters", requireAuth, upload.single("reference"), async (req, re
       "生成一张中文企业海报，画面清晰、构图完整、适合企业内部传播。",
       "海报文字要尽量准确、简洁，避免乱码。",
       "不要绘制企业 Logo、Logo 预留区、占位框、虚线框，或“企业LOGO”等占位文字；画面应完整自然。",
+      logoUrl ? "左上角需要自然保留一块干净、浅色、低纹理的品牌留白区，用来后期叠放真实企业标识；留白区要融入整体设计，不要画边框、虚线、占位文字或任何假 Logo。" : "",
       priorPoster ? `这是基于上一版海报继续调整。上一版用户需求：${priorPoster.prompt}` : "",
       priorPoster ? `上一版生成提示词：${priorPoster.finalPrompt}` : "",
       priorPoster ? "请保留用户没有要求改变的核心主题和关键信息，只根据本轮新要求生成一个新的海报版本。" : "",

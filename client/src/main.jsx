@@ -294,7 +294,7 @@ function PosterView() {
           </label>
           <label className="check-row compact-check">
             <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
-            Logo
+            Logo 自然留白
           </label>
         </div>
         {!settings.logoUrl && useLogo && <div className="notice">当前还没有企业 Logo，管理员可在后台上传。</div>}
