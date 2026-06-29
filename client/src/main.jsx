@@ -301,6 +301,7 @@ function PosterView() {
           </label>
           <select className="logo-style-select" value={logoStyle} onChange={(e) => setLogoStyle(e.target.value)} disabled={!useLogo}>
             <option value="auto">自动融合</option>
+            <option value="plain">原始悬浮</option>
             <option value="white">简洁白底</option>
             <option value="glass">玻璃悬浮</option>
             <option value="dark">深色柔光</option>
@@ -350,7 +351,7 @@ async function downloadPosterFile(poster) {
     const width = Math.round(canvas.width * 0.18);
     const height = Math.round((logo.naturalHeight / logo.naturalWidth) * width);
     const padding = Math.round(canvas.width * 0.04);
-    const framePad = Math.round(canvas.width * 0.018);
+    const framePad = style === "plain" ? 0 : Math.round(canvas.width * 0.018);
     const radius = Math.round(canvas.width * 0.018);
     const frame = {
       x: padding - framePad,
@@ -359,7 +360,7 @@ async function downloadPosterFile(poster) {
       height: height + framePad * 2
     };
 
-    drawLogoFrame(ctx, frame, radius, style);
+    if (style !== "plain") drawLogoFrame(ctx, frame, radius, style);
     ctx.drawImage(logo, padding, padding, width, height);
   }
 

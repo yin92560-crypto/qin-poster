@@ -165,7 +165,7 @@ app.post("/api/chat", requireAuth, async (req, res) => {
 app.post("/api/posters", requireAuth, upload.single("reference"), async (req, res) => {
   try {
     const { prompt, useLogo, priorPosterId } = req.body;
-    const logoStyle = ["auto", "white", "glass", "dark"].includes(req.body.logoStyle)
+    const logoStyle = ["auto", "plain", "white", "glass", "dark"].includes(req.body.logoStyle)
       ? req.body.logoStyle
       : "auto";
     if (!prompt?.trim()) return res.status(400).json({ message: "请输入海报描述" });
