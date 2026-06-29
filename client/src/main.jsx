@@ -216,6 +216,7 @@ function PosterView() {
   const [prompt, setPrompt] = useState("");
   const [reference, setReference] = useState(null);
   const [useLogo, setUseLogo] = useState(true);
+  const [logoStyle, setLogoStyle] = useState("auto");
   const [settings, setSettings] = useState({});
   const [poster, setPoster] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -235,6 +236,7 @@ function PosterView() {
       const form = new FormData();
       form.append("prompt", content);
       form.append("useLogo", String(useLogo));
+      form.append("logoStyle", logoStyle);
       if (poster?.id) form.append("priorPosterId", poster.id);
       if (reference) form.append("reference", reference);
       const data = await request("/posters", { method: "POST", body: form });
@@ -294,8 +296,14 @@ function PosterView() {
           </label>
           <label className="check-row compact-check">
             <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
-            Logo 自然留白
+            Logo 融合
           </label>
+          <select className="logo-style-select" value={logoStyle} onChange={(e) => setLogoStyle(e.target.value)} disabled={!useLogo}>
+            <option value="auto">自动融合</option>
+            <option value="white">简洁白底</option>
+            <option value="glass">玻璃悬浮</option>
+            <option value="dark">深色柔光</option>
+          </select>
         </div>
         {!settings.logoUrl && useLogo && <div className="notice">当前还没有企业 Logo，管理员可在后台上传。</div>}
         <div className="poster-composer">
@@ -337,9 +345,20 @@ async function downloadPosterFile(poster) {
 
   if (poster.logoUrl) {
     const logo = await loadImage(absoluteUrl(poster.logoUrl));
+    const style = resolveCanvasLogoStyle(poster.logoStyle || "auto", ctx, canvas);
     const width = Math.round(canvas.width * 0.18);
     const height = Math.round((logo.naturalHeight / logo.naturalWidth) * width);
     const padding = Math.round(canvas.width * 0.04);
+    const framePad = Math.round(canvas.width * 0.018);
+    const radius = Math.round(canvas.width * 0.018);
+    const frame = {
+      x: padding - framePad,
+      y: padding - framePad,
+      width: width + framePad * 2,
+      height: height + framePad * 2
+    };
+
+    drawLogoFrame(ctx, frame, radius, style);
     ctx.drawImage(logo, padding, padding, width, height);
   }
 
@@ -347,6 +366,75 @@ async function downloadPosterFile(poster) {
   link.download = `勤海报-${Date.now()}.png`;
   link.href = canvas.toDataURL("image/png");
   link.click();
+}
+
+function resolveCanvasLogoStyle(style, ctx, canvas) {
+  if (style !== "auto") return style;
+
+  const sampleX = Math.round(canvas.width * 0.03);
+  const sampleY = Math.round(canvas.height * 0.03);
+  const sampleW = Math.round(canvas.width * 0.26);
+  const sampleH = Math.round(canvas.height * 0.14);
+  let data;
+  try {
+    data = ctx.getImageData(sampleX, sampleY, sampleW, sampleH).data;
+  } catch (error) {
+    return "glass";
+  }
+  let total = 0;
+  let totalSquare = 0;
+  let count = 0;
+
+  for (let index = 0; index < data.length; index += 16) {
+    const luminance = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+    total += luminance;
+    totalSquare += luminance * luminance;
+    count += 1;
+  }
+
+  const average = total / count;
+  const variance = Math.max(0, totalSquare / count - average * average);
+  const contrast = Math.sqrt(variance);
+
+  if (average < 95) return "dark";
+  if (contrast > 38) return "glass";
+  return "white";
+}
+
+function drawLogoFrame(ctx, frame, radius, style) {
+  ctx.save();
+  ctx.shadowColor = "rgba(15, 23, 42, 0.18)";
+  ctx.shadowBlur = Math.max(10, frame.width * 0.08);
+  ctx.shadowOffsetY = Math.max(3, frame.width * 0.02);
+
+  if (style === "dark") {
+    ctx.fillStyle = "rgba(13, 28, 43, 0.62)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+  } else if (style === "glass") {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.58)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.78)";
+  } else {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.strokeStyle = "rgba(23, 32, 42, 0.08)";
+  }
+
+  roundedRect(ctx, frame.x, frame.y, frame.width, frame.height, radius);
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.lineWidth = Math.max(1, frame.width * 0.006);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
 }
 
 function PosterHistory() {
@@ -375,7 +463,7 @@ function PosterCard({ poster, onDownload, large = false }) {
     <article className={`poster-card ${large ? "large" : ""}`}>
       <div className="poster-preview">
         <img src={poster.imageUrl} alt="生成海报" />
-        {poster.logoUrl && <img className="poster-logo" src={poster.logoUrl} alt="企业 Logo" />}
+        {poster.logoUrl && <PosterLogoOverlay poster={poster} />}
       </div>
       <div className="poster-info">
         <strong>{poster.prompt}</strong>
@@ -389,6 +477,15 @@ function PosterCard({ poster, onDownload, large = false }) {
         </div>
       </div>
     </article>
+  );
+}
+
+function PosterLogoOverlay({ poster }) {
+  const style = poster.logoStyle || "auto";
+  return (
+    <div className={`poster-logo-frame poster-logo-${style}`}>
+      <img className="poster-logo" src={poster.logoUrl} alt="企业 Logo" />
+    </div>
   );
 }
 

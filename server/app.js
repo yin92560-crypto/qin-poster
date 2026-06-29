@@ -165,6 +165,9 @@ app.post("/api/chat", requireAuth, async (req, res) => {
 app.post("/api/posters", requireAuth, upload.single("reference"), async (req, res) => {
   try {
     const { prompt, useLogo, priorPosterId } = req.body;
+    const logoStyle = ["auto", "white", "glass", "dark"].includes(req.body.logoStyle)
+      ? req.body.logoStyle
+      : "auto";
     if (!prompt?.trim()) return res.status(400).json({ message: "请输入海报描述" });
 
     const setting = await query("select value from settings where key = 'logo_url' limit 1");
@@ -179,14 +182,20 @@ app.post("/api/posters", requireAuth, upload.single("reference"), async (req, re
       const item = prior.rows[0] ? mapPoster(prior.rows[0]) : null;
       if (item && canReadRecord(req.user, item)) priorPoster = item;
     }
+    const priorFinalPrompt = priorPoster?.finalPrompt
+      ? priorPoster.finalPrompt.replace(
+        "左上角需要自然保留一块干净、浅色、低纹理的品牌留白区，用来后期叠放真实企业标识；留白区要融入整体设计，不要画边框、虚线、占位文字或任何假 Logo。",
+        "不要为 Logo 特意预留空白区域。"
+      )
+      : "";
 
     const finalPrompt = [
       "生成一张中文企业海报，画面清晰、构图完整、适合企业内部传播。",
       "海报文字要尽量准确、简洁，避免乱码。",
       "不要绘制企业 Logo、Logo 预留区、占位框、虚线框，或“企业LOGO”等占位文字；画面应完整自然。",
-      logoUrl ? "左上角需要自然保留一块干净、浅色、低纹理的品牌留白区，用来后期叠放真实企业标识；留白区要融入整体设计，不要画边框、虚线、占位文字或任何假 Logo。" : "",
+      logoUrl ? "不需要为 Logo 特意预留空白区域，后期会用融合层叠加真实企业标识，请保持海报整体构图完整。" : "",
       priorPoster ? `这是基于上一版海报继续调整。上一版用户需求：${priorPoster.prompt}` : "",
-      priorPoster ? `上一版生成提示词：${priorPoster.finalPrompt}` : "",
+      priorPoster ? `上一版生成提示词：${priorFinalPrompt}` : "",
       priorPoster ? "请保留用户没有要求改变的核心主题和关键信息，只根据本轮新要求生成一个新的海报版本。" : "",
       prompt,
       referenceUrl ? "用户上传了参考图片，当前版本仅保存参考图，不调用对话模型识图分析。" : ""
@@ -199,8 +208,8 @@ app.post("/api/posters", requireAuth, upload.single("reference"), async (req, re
     const result = await query(
       `insert into poster_jobs (
         id, user_id, username, prompt, final_prompt, reference_url, reference_text,
-        use_logo, logo_url, image_url, created_at
-      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        use_logo, logo_style, logo_url, image_url, created_at
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       returning *`,
       [
         crypto.randomUUID(),
@@ -211,6 +220,7 @@ app.post("/api/posters", requireAuth, upload.single("reference"), async (req, re
         referenceUrl,
         "",
         useLogo === "true",
+        logoStyle,
         logoUrl,
         imageUrl,
         now

@@ -65,10 +65,14 @@ async function ensureSchema() {
         reference_url text,
         reference_text text,
         use_logo boolean not null default false,
+        logo_style text not null default 'auto',
         logo_url text,
         image_url text not null,
         created_at timestamptz not null default now()
       );
+
+      alter table poster_jobs
+        add column if not exists logo_style text not null default 'auto';
 
       create index if not exists poster_jobs_user_id_created_at_idx
         on poster_jobs (user_id, created_at desc);
