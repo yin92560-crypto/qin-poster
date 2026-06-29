@@ -347,6 +347,119 @@ select:focus {
   min-height: 0;
 }
 
+.poster-chat-grid {
+  padding: 22px;
+  display: grid;
+  grid-template-columns: minmax(420px, 1.15fr) minmax(320px, 0.85fr);
+  gap: 18px;
+  min-height: 0;
+}
+
+.poster-chat-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel-title-row h2 {
+  margin: 0;
+}
+
+.poster-thread {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px 12px;
+}
+
+.poster-chat-message {
+  max-width: min(680px, 90%);
+  display: flex;
+}
+
+.poster-chat-message.user {
+  align-self: flex-end;
+}
+
+.poster-chat-message.assistant {
+  align-self: flex-start;
+}
+
+.poster-chat-message > div {
+  border-radius: 8px;
+  padding: 12px;
+  line-height: 1.6;
+}
+
+.poster-chat-message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.poster-chat-message.user > div {
+  background: #1f7a8c;
+  color: #ffffff;
+}
+
+.poster-chat-message.assistant > div {
+  background: #f7fafc;
+  border: 1px solid #dce5ef;
+}
+
+.poster-chat-message .poster-card {
+  margin-top: 10px;
+  width: min(260px, 100%);
+}
+
+.poster-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.upload-box.compact {
+  min-height: 46px;
+  margin: 0;
+}
+
+.compact-check {
+  min-height: 46px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid #dce5ef;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.poster-composer {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  border: 1px solid #dce5ef;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.poster-composer textarea {
+  min-height: 54px;
+  max-height: 150px;
+  border: 0;
+  box-shadow: none;
+  padding: 8px;
+}
+
 .panel {
   background: #ffffff;
   border: 1px solid #dce5ef;
@@ -598,7 +711,16 @@ th {
   .app-shell,
   .chat-layout,
   .poster-grid,
+  .poster-chat-grid,
   .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .poster-chat-panel {
+    min-height: 620px;
+  }
+
+  .poster-controls {
     grid-template-columns: 1fr;
   }
 

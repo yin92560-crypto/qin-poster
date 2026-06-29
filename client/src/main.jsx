@@ -218,26 +218,47 @@ function PosterView() {
   const [useLogo, setUseLogo] = useState(true);
   const [settings, setSettings] = useState({});
   const [poster, setPoster] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => { request("/settings").then(setSettings).catch(() => {}); }, []);
 
   async function generate() {
+    if (!prompt.trim() || loading) return;
+    const content = prompt.trim();
     setError("");
     setLoading(true);
+    setPrompt("");
+    setMessages((items) => [...items, { role: "user", content }]);
     try {
       const form = new FormData();
-      form.append("prompt", prompt);
+      form.append("prompt", content);
       form.append("useLogo", String(useLogo));
+      if (poster?.id) form.append("priorPosterId", poster.id);
       if (reference) form.append("reference", reference);
       const data = await request("/posters", { method: "POST", body: form });
       setPoster(data.poster);
+      setMessages((items) => [...items, {
+        role: "assistant",
+        content: poster?.id ? "已根据你的调整生成新版本。" : "已生成第一版海报。",
+        poster: data.poster
+      }]);
+      setReference(null);
     } catch (err) {
       setError(err.message);
+      setMessages((items) => [...items, { role: "assistant", content: `生成失败：${err.message}` }]);
     } finally {
       setLoading(false);
     }
+  }
+
+  function newPosterChat() {
+    setPrompt("");
+    setReference(null);
+    setPoster(null);
+    setMessages([]);
+    setError("");
   }
 
   async function downloadPoster() {
@@ -246,26 +267,50 @@ function PosterView() {
   }
 
   return (
-    <div className="poster-grid">
-      <section className="panel">
-        <h2>生成海报</h2>
-        <textarea className="poster-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="请描述你想要的海报，例如：生成一张端午节企业福利海报，国风、清爽、适合发公司群，标题是“端午安康，福利已到”" />
-        <label className="upload-box">
-          <Upload size={20} />
-          <span>{reference ? reference.name : "上传参考图片，可选"}</span>
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setReference(e.target.files?.[0] || null)} />
-        </label>
-        <label className="check-row">
-          <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
-          添加企业 Logo（默认左上角悬浮）
-        </label>
-        {!settings.logoUrl && useLogo && <div className="notice">当前还没有企业 Logo，管理员可在后台上传。</div>}
+    <div className="poster-chat-grid">
+      <section className="panel poster-chat-panel">
+        <div className="panel-title-row">
+          <h2>海报创作对话</h2>
+          <button className="ghost" onClick={newPosterChat} disabled={loading}><Plus size={17} />新建创作</button>
+        </div>
+        <div className="poster-thread">
+          {!messages.length && <Empty icon={ImagePlus} title="描述你的第一版海报" text="生成后可以继续说“换成蓝色科技风”“标题放大”“再来一版更简洁的”。" />}
+          {messages.map((msg, index) => (
+            <div key={index} className={`poster-chat-message ${msg.role}`}>
+              <div>
+                <p>{msg.content}</p>
+                {msg.poster && <PosterCard poster={msg.poster} onDownload={() => downloadPosterFile(msg.poster)} />}
+              </div>
+            </div>
+          ))}
+          {loading && <div className="poster-chat-message assistant"><div><p>正在生成新版本...</p></div></div>}
+        </div>
         {error && <div className="error inline">{error}</div>}
-        <button className="primary" onClick={generate} disabled={loading}>{loading ? "生成中..." : "生成海报"}</button>
+        <div className="poster-controls">
+          <label className="upload-box compact">
+            <Upload size={18} />
+            <span>{reference ? reference.name : "参考图"}</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setReference(e.target.files?.[0] || null)} />
+          </label>
+          <label className="check-row compact-check">
+            <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
+            Logo
+          </label>
+        </div>
+        {!settings.logoUrl && useLogo && <div className="notice">当前还没有企业 Logo，管理员可在后台上传。</div>}
+        <div className="poster-composer">
+          <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              generate();
+            }
+          }} placeholder={poster ? "继续调整这张海报，例如：换成深蓝色、标题更大、画面更简洁" : "请描述你想要的海报，例如：生成一张端午节企业福利海报，国风、清爽、标题是“端午安康，福利已到”"} />
+          <button className="primary icon" onClick={generate} disabled={loading || !prompt.trim()}><Send size={18} /></button>
+        </div>
       </section>
       <section className="panel result-panel">
-        <h2>生成结果</h2>
-        {!poster && <Empty icon={ImagePlus} title="还没有海报" text="填写描述后生成，结果会自动保存到海报历史。" />}
+        <h2>当前版本</h2>
+        {!poster && <Empty icon={ImagePlus} title="还没有海报" text="在左侧输入描述，生成结果会自动保存到海报历史。" />}
         {poster && <PosterCard poster={poster} onDownload={downloadPoster} large />}
       </section>
     </div>
