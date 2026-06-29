@@ -11,7 +11,7 @@ const bcrypt = require("bcryptjs");
 const { ensureSchema, publicUser, query, toCamel } = require("./db");
 const { signUser, requireAuth, requireAdmin } = require("./auth");
 const { chat, generateImage } = require("./openai");
-const { uploadBuffer } = require("./storage");
+const { deleteObjectByUrl, uploadBuffer } = require("./storage");
 
 const app = express();
 const rootDir = path.join(__dirname, "..");
@@ -239,6 +239,21 @@ app.get("/api/posters", requireAuth, async (req, res) => {
     : await query("select * from poster_jobs where user_id = $1 order by created_at desc", [req.user.id]);
 
   res.json({ posters: result.rows.map(mapPoster) });
+});
+
+app.delete("/api/posters/:id", requireAuth, async (req, res) => {
+  const found = await query("select * from poster_jobs where id = $1 limit 1", [req.params.id]);
+  const poster = found.rows[0] ? mapPoster(found.rows[0]) : null;
+  if (!poster || !canReadRecord(req.user, poster)) {
+    return res.status(404).json({ message: "海报记录不存在" });
+  }
+
+  await query("delete from poster_jobs where id = $1", [req.params.id]);
+  await Promise.allSettled([
+    deleteObjectByUrl(poster.imageUrl),
+    deleteObjectByUrl(poster.referenceUrl)
+  ]);
+  res.json({ ok: true });
 });
 
 app.get("/api/settings", requireAuth, async (req, res) => {

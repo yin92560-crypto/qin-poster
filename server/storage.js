@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const path = require("path");
-const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { DeleteObjectCommand, PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 
 let client;
 
@@ -49,6 +49,24 @@ async function uploadBuffer(folder, buffer, contentType, originalName) {
   return publicUrl(key);
 }
 
+function keyFromPublicUrl(url) {
+  if (!url) return null;
+  const base = required("R2_PUBLIC_URL").replace(/\/$/, "");
+  if (!url.startsWith(`${base}/`)) return null;
+  return decodeURIComponent(url.slice(base.length + 1));
+}
+
+async function deleteObjectByUrl(url) {
+  const key = keyFromPublicUrl(url);
+  if (!key) return;
+
+  await getClient().send(new DeleteObjectCommand({
+    Bucket: required("R2_BUCKET"),
+    Key: key
+  }));
+}
+
 module.exports = {
+  deleteObjectByUrl,
   uploadBuffer
 };

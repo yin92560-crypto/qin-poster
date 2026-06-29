@@ -4,6 +4,7 @@ import {
   Bot,
   Download,
   ImagePlus,
+  Eye,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -440,43 +441,105 @@ function roundedRect(ctx, x, y, width, height, radius) {
 function PosterHistory() {
   const [posters, setPosters] = useState([]);
   const [keyword, setKeyword] = useState("");
+  const [previewPoster, setPreviewPoster] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => { request("/posters").then((data) => setPosters(data.posters)); }, []);
 
   const filtered = posters.filter((item) => item.prompt.includes(keyword) || item.username.includes(keyword));
+
+  async function deletePoster(poster) {
+    const ok = window.confirm("确定删除这张海报记录吗？删除后历史记录和图片文件都会移除。");
+    if (!ok) return;
+
+    setError("");
+    try {
+      await request(`/posters/${poster.id}`, { method: "DELETE" });
+      setPosters((items) => items.filter((item) => item.id !== poster.id));
+      if (previewPoster?.id === poster.id) setPreviewPoster(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   return (
     <div className="history-page">
       <div className="toolbar">
         <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索描述或用户" />
       </div>
+      {error && <div className="error inline">{error}</div>}
       <div className="poster-list">
-        {filtered.map((poster) => <PosterCard key={poster.id} poster={poster} />)}
+        {filtered.map((poster) => (
+          <PosterCard
+            key={poster.id}
+            poster={poster}
+            onPreview={() => setPreviewPoster(poster)}
+            onDelete={() => deletePoster(poster)}
+          />
+        ))}
       </div>
       {!filtered.length && <Empty icon={LayoutDashboard} title="暂无记录" text="生成过的海报会出现在这里。" />}
+      {previewPoster && (
+        <PosterPreviewModal
+          poster={previewPoster}
+          onClose={() => setPreviewPoster(null)}
+          onDelete={() => deletePoster(previewPoster)}
+        />
+      )}
     </div>
   );
 }
 
-function PosterCard({ poster, onDownload, large = false }) {
+function PosterCard({ poster, onDownload, onPreview, onDelete, large = false }) {
   return (
     <article className={`poster-card ${large ? "large" : ""}`}>
-      <div className="poster-preview">
+      <button className="poster-preview poster-preview-button" onClick={onPreview} disabled={!onPreview}>
         <img src={poster.imageUrl} alt="生成海报" />
         {poster.logoUrl && <PosterLogoOverlay poster={poster} />}
-      </div>
+      </button>
       <div className="poster-info">
         <strong>{poster.prompt}</strong>
         <span>{poster.username} · {new Date(poster.createdAt).toLocaleString()}</span>
         <div className="actions">
+          {onPreview && (
+            <button className="ghost" onClick={onPreview}><Eye size={17} />预览</button>
+          )}
           {onDownload ? (
             <button className="primary" onClick={onDownload}><Download size={17} />下载图片</button>
           ) : (
             <button className="button-link" onClick={() => downloadPosterFile(poster)}><Download size={17} />下载图片</button>
           )}
+          {onDelete && (
+            <button className="danger" onClick={onDelete}><Trash2 size={17} />删除</button>
+          )}
         </div>
       </div>
     </article>
+  );
+}
+
+function PosterPreviewModal({ poster, onClose, onDelete }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <section className="poster-modal" onClick={(event) => event.stopPropagation()}>
+        <header className="modal-header">
+          <div>
+            <strong>海报预览</strong>
+            <span>{poster.username} · {new Date(poster.createdAt).toLocaleString()}</span>
+          </div>
+          <button className="ghost icon" onClick={onClose}>×</button>
+        </header>
+        <div className="poster-modal-image">
+          <img src={poster.imageUrl} alt="生成海报大图" />
+          {poster.logoUrl && <PosterLogoOverlay poster={poster} />}
+        </div>
+        <p>{poster.prompt}</p>
+        <footer className="modal-actions">
+          <button className="primary" onClick={() => downloadPosterFile(poster)}><Download size={17} />下载图片</button>
+          <button className="danger" onClick={onDelete}><Trash2 size={17} />删除</button>
+        </footer>
+      </section>
+    </div>
   );
 }
 
